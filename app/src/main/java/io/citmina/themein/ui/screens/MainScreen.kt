@@ -15,7 +15,9 @@ import io.citmina.themein.ui.components.AppListSheet
 import io.citmina.themein.ui.components.BottomNavigationBar
 import io.citmina.themein.model.AppInfo
 import io.citmina.themein.data.AppPreferencesManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -23,17 +25,20 @@ fun MainScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val preferencesManager = remember { AppPreferencesManager(context) }
-    
+
     var selectedItem by remember { mutableStateOf(NavigationItem.Home) }
     var showAppList by remember { mutableStateOf(false) }
     var currentApp by remember { mutableStateOf<AppInfo?>(null) }
-    
-    // 从 DataStore 读取已保存的应用列表
-    val savedApps = preferencesManager.selectedAppsFlow.collectAsState(initial = emptyList())
-    
+
+    val savedApps by produceState(initialValue = emptyList()) {
+        value = withContext(Dispatchers.IO) {
+            preferencesManager.getSelectedApps()
+        }
+    }
+
     // 将保存的应用信息转换为完整的 AppInfo 对象
-    val selectedApps = remember(savedApps.value) {
-        savedApps.value.mapNotNull { savedApp ->
+    val selectedApps = remember(savedApps) {
+        savedApps.mapNotNull { savedApp ->
             try {
                 val packageManager = context.packageManager
                 val applicationInfo = packageManager.getApplicationInfo(savedApp.packageName, 0)
@@ -47,6 +52,7 @@ fun MainScreen() {
             }
         }
     }
+
     
     val screenWidth = LocalConfiguration.current.screenWidthDp
     
