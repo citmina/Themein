@@ -29,30 +29,34 @@ fun MainScreen() {
     var selectedItem by remember { mutableStateOf(NavigationItem.Home) }
     var showAppList by remember { mutableStateOf(false) }
     var currentApp by remember { mutableStateOf<AppInfo?>(null) }
-
-    val savedApps by produceState(initialValue = emptyList()) {
-        value = withContext(Dispatchers.IO) {
+    
+    val selectedApps = remember { mutableStateListOf<AppInfo>() }
+    
+    // 在组件首次加载时初始化应用列表
+    LaunchedEffect(Unit) {
+        val savedApps = withContext(Dispatchers.IO) {
             preferencesManager.getSelectedApps()
         }
-    }
-
-    // 将保存的应用信息转换为完整的 AppInfo 对象
-    val selectedApps = remember(savedApps) {
-        savedApps.mapNotNull { savedApp ->
+        
+        // 转换保存的应用信息为完整的 AppInfo 对象
+        val apps = savedApps.mapNotNull { savedApp ->
             try {
                 val packageManager = context.packageManager
                 val applicationInfo = packageManager.getApplicationInfo(savedApp.packageName, 0)
                 AppInfo(
                     packageName = savedApp.packageName,
                     appName = savedApp.appName,
-                    icon = packageManager.getApplicationIcon(applicationInfo)
+                    icon = packageManager.getApplicationIcon(applicationInfo),
+                    path = savedApp.path
                 )
             } catch (e: Exception) {
                 null
             }
         }
+        
+        selectedApps.clear()
+        selectedApps.addAll(apps)
     }
-
     
     val screenWidth = LocalConfiguration.current.screenWidthDp
     
@@ -141,8 +145,9 @@ fun MainScreen() {
                             selectedApps = selectedApps,
                             onAddClick = { showAppList = true },
                             onRemoveApp = { app ->
+                                selectedApps.remove(app)  // 直接从列表中移除
                                 scope.launch {
-                                    preferencesManager.updateSelectedApps(selectedApps.filter { it != app })
+                                    preferencesManager.updateSelectedApps(selectedApps.toList())
                                 }
                             },
                             onAppClick = { app ->
@@ -162,8 +167,9 @@ fun MainScreen() {
                 onDismiss = { showAppList = false },
                 onAppSelected = { app ->
                     if (!selectedApps.contains(app)) {
+                        selectedApps.add(app)
                         scope.launch {
-                            preferencesManager.updateSelectedApps(selectedApps + app)
+                            preferencesManager.updateSelectedApps(selectedApps.toList())
                         }
                     }
                 },
